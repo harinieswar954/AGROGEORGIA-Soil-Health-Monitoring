@@ -1,0 +1,10 @@
+PUT THESE JARS IN THIS FOLDER:
+
+mysql-connector-j-9.6.0.jar
+weka.jar
+
+Weka:
+https://waikato.github.io/weka-wiki/downloading_weka/
+
+MySQL Connector/J:
+https://dev.mysql.com/downloads/connector/j/
