@@ -1,0 +1,6 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>History</title><link rel="stylesheet" href="/style.css"></head><body>
+<nav><div class="brand">AGROGEORGIA</div><div><a href="/">Home</a><a href="/dashboard.html">Dashboard</a><a href="/analysis.html">AI Analysis</a><a href="/history.html">History</a><a href="/research.html">Research Portal</a></div></nav>
+<main class="container"><span class="badge">DATABASE</span><h1>Soil Monitoring History</h1><div class="table-wrap"><table><thead><tr><th>ID</th><th>Time</th><th>Moisture</th><th>pH</th><th>N</th><th>P</th><th>K</th><th>Temp</th><th>Soil</th><th>Plant</th><th>Duration</th><th>Source</th></tr></thead><tbody id="history"></tbody></table></div></main>
+<script>
+async function load(){let d=await(await fetch("/api/history")).json();let t=document.getElementById("history");t.innerHTML="";if(!Array.isArray(d)||!d.length){t.innerHTML='<tr><td colspan="12">No records yet.</td></tr>';return}d.forEach(r=>{let tr=document.createElement("tr");tr.innerHTML="<td>"+r.id+"</td><td>"+r.time+"</td><td>"+r.moisture+"%</td><td>"+r.ph+"</td><td>"+r.nitrogen+"</td><td>"+r.phosphorus+"</td><td>"+r.potassium+"</td><td>"+r.temperature+"°C</td><td>"+r.soilType+"</td><td>"+r.plant+"</td><td>"+r.duration+"</td><td>"+r.source+"</td>";t.appendChild(tr)})}load();
+</script></body></html>
