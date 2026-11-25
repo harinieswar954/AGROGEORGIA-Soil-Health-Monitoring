@@ -1,6 +1,0 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Research Portal</title><link rel="stylesheet" href="/style.css"></head><body>
-<nav><div class="brand">AGROGEORGIA</div><div><a href="/">Home</a><a href="/dashboard.html">Dashboard</a><a href="/analysis.html">AI Analysis</a><a href="/history.html">History</a><a href="/research.html">Research Portal</a></div></nav>
-<main class="container"><span class="badge">RESEARCH / STUDENT PORTAL</span><h1>Soil Data Repository</h1><p>Stored observations for student and research analysis.</p>
-<div class="grid"><div class="metric"><span>Total Records</span><strong id="total">--</strong></div><div class="metric"><span>Average Moisture</span><strong id="avg">--</strong></div><div class="metric"><span>Database</span><strong>MySQL</strong></div></div>
-<section class="result"><h2>Research Usage</h2><p>Researchers can compare stored observations and use them for soil-condition analysis, crop recommendation studies and future model improvement.</p><p class="note">Only moisture is physically measured in the current hardware prototype.</p></section></main>
-<script>async function load(){let d=await(await fetch("/api/research")).json();total.textContent=d.total;avg.textContent=d.averageMoisture+"%"}load();</script></body></html>
