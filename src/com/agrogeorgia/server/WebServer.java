@@ -1,3 +1,4 @@
+
 package com.agrogeorgia.server;
 
 import com.agrogeorgia.ai.CropPrediction;
@@ -10,6 +11,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +20,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -32,8 +35,15 @@ public class WebServer {
 
     public void start() throws IOException {
 
-        String portValue = System.getenv("PORT"); 
-        int port = (portValue != null) ? Integer.parseInt(portValue) : 8080; 
+        String portValue = System.getenv("PORT");
+        int port = (portValue != null && !portValue.isBlank())
+                ? Integer.parseInt(portValue)
+                : 8080;
+
+        if (port < 1 || port > 65535) {
+            throw new IOException("Invalid server port configuration.");
+        }
+
         server = HttpServer.create(new InetSocketAddress(port), 0);
 
         server.createContext("/api/predict", this::predict);
@@ -45,23 +55,47 @@ public class WebServer {
         server.setExecutor(null);
         server.start();
 
-       System.out.println("Web server started on port: " + port);
+        System.out.println("Web server started on port: " + port);
+    }
+
+    private boolean allowGet(HttpExchange e) throws IOException {
+
+        if (!"GET".equalsIgnoreCase(e.getRequestMethod())) {
+            e.getResponseHeaders().set("Allow", "GET");
+            json(e, 405, "{\"error\":\"Method not allowed\"}");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void checkPath(HttpExchange e, String expected) {
+
+        if (!expected.equals(e.getRequestURI().getPath())) {
+            throw new IllegalArgumentException("Invalid API path.");
+        }
     }
 
     private void predict(HttpExchange e) throws IOException {
 
+        if (!allowGet(e)) {
+            return;
+        }
+
         try {
+
+            checkPath(e, "/api/predict");
 
             Map<String, String> p = query(e.getRequestURI());
 
-            double moisture = number(p, "moisture", 50);
-            double ph = number(p, "ph", 6.5);
-            double nitrogen = number(p, "nitrogen", 50);
-            double phosphorus = number(p, "phosphorus", 50);
-            double potassium = number(p, "potassium", 50);
-            double temperature = number(p, "temperature", 25);
-            double humidity = number(p, "humidity", 60);
-            double rainfall = number(p, "rainfall", 100);
+            double moisture = number(p, "moisture", 50, 0, 100);
+            double ph = number(p, "ph", 6.5, 0, 14);
+            double nitrogen = number(p, "nitrogen", 50, 0, Double.MAX_VALUE);
+            double phosphorus = number(p, "phosphorus", 50, 0, Double.MAX_VALUE);
+            double potassium = number(p, "potassium", 50, 0, Double.MAX_VALUE);
+            double temperature = number(p, "temperature", 25, -50, 60);
+            double humidity = number(p, "humidity", 60, 0, 100);
+            double rainfall = number(p, "rainfall", 100, 0, Double.MAX_VALUE);
 
             String crop = ai.predict(
                     nitrogen,
@@ -74,6 +108,7 @@ public class WebServer {
             );
 
             String soil = soilType(ph, moisture);
+
             String health = soilHealth(
                     moisture,
                     nitrogen,
@@ -92,39 +127,44 @@ public class WebServer {
 
             json(e, 200, response);
 
+        } catch (IllegalArgumentException ex) {
+
+            json(e, 400, "{\"status\":\"error\",\"message\":\"Invalid input. Please check the values.\"}");
+
         } catch (Exception ex) {
 
-            json(
-                    e,
-                    500,
-                    "{\"status\":\"error\",\"message\":\""
-                            + esc(ex.getMessage())
-                            + "\"}"
-            );
+            System.err.println("Prediction error: " + ex.getMessage());
+
+            json(e, 500, "{\"status\":\"error\",\"message\":\"Prediction could not be completed.\"}");
         }
     }
 
     private void readings(HttpExchange e) throws IOException {
 
-        if (!"GET".equalsIgnoreCase(e.getRequestMethod())) {
-            json(e, 405, "{\"error\":\"GET method required\"}");
+        if (!allowGet(e)) {
             return;
         }
 
         try {
 
+            checkPath(e, "/api/readings");
+
             Map<String, String> p = query(e.getRequestURI());
 
-            double moisture = number(p, "moisture", 50);
-            double ph = number(p, "ph", 6.5);
-            double nitrogen = number(p, "nitrogen", 50);
-            double phosphorus = number(p, "phosphorus", 50);
-            double potassium = number(p, "potassium", 50);
-            double temperature = number(p, "temperature", 25);
-            double humidity = number(p, "humidity", 60);
-            double rainfall = number(p, "rainfall", 100);
+            double moisture = number(p, "moisture", 50, 0, 100);
+            double ph = number(p, "ph", 6.5, 0, 14);
+            double nitrogen = number(p, "nitrogen", 50, 0, Double.MAX_VALUE);
+            double phosphorus = number(p, "phosphorus", 50, 0, Double.MAX_VALUE);
+            double potassium = number(p, "potassium", 50, 0, Double.MAX_VALUE);
+            double temperature = number(p, "temperature", 25, -50, 60);
+            double humidity = number(p, "humidity", 60, 0, 100);
+            double rainfall = number(p, "rainfall", 100, 0, Double.MAX_VALUE);
 
             String source = p.getOrDefault("source", "web");
+
+            if (source.isBlank() || source.length() > 50) {
+                throw new IllegalArgumentException("Invalid source.");
+            }
 
             String crop = ai.predict(
                     nitrogen,
@@ -177,205 +217,237 @@ public class WebServer {
             json(
                     e,
                     200,
-                    "{\"status\":\"saved\","
-                            + "\"message\":\"Reading saved successfully\"}"
+                    "{\"status\":\"saved\",\"message\":\"Reading saved successfully\"}"
             );
+
+        } catch (IllegalArgumentException ex) {
+
+            json(e, 400, "{\"status\":\"error\",\"message\":\"Invalid input. Please check the values.\"}");
+
+        } catch (SQLException ex) {
+
+            System.err.println("Database save error: " + ex.getMessage());
+
+            json(e, 503, "{\"status\":\"error\",\"message\":\"Database is currently unavailable.\"}");
 
         } catch (Exception ex) {
 
-            json(
-                    e,
-                    500,
-                    "{\"status\":\"error\",\"message\":\""
-                            + esc(ex.getMessage())
-                            + "\"}"
-            );
+            System.err.println("Reading save error: " + ex.getMessage());
+
+            json(e, 500, "{\"status\":\"error\",\"message\":\"Reading could not be saved.\"}");
         }
     }
 
     private void history(HttpExchange e) throws IOException {
 
-        StringBuilder s = new StringBuilder();
-
-        s.append("[");
-
-        String sql =
-                "SELECT id, moisture, ph, nitrogen, phosphorus, potassium, "
-                + "temperature, soil_type, suitable_plant, growth_duration, "
-                + "source, reading_time "
-                + "FROM soil_readings "
-                + "ORDER BY id DESC LIMIT 50";
-
-        try (
-                Connection con = DatabaseConnection.getConnection();
-                PreparedStatement ps = con.prepareStatement(sql);
-                ResultSet r = ps.executeQuery()
-        ) {
-
-            boolean first = true;
-
-            while (r.next()) {
-
-                if (!first) {
-                    s.append(",");
-                }
-
-                first = false;
-
-                s.append("{")
-                        .append("\"id\":")
-                        .append(r.getInt("id"))
-
-                        .append(",\"moisture\":")
-                        .append(r.getDouble("moisture"))
-
-                        .append(",\"ph\":")
-                        .append(r.getDouble("ph"))
-
-                        .append(",\"nitrogen\":")
-                        .append(r.getDouble("nitrogen"))
-
-                        .append(",\"phosphorus\":")
-                        .append(r.getDouble("phosphorus"))
-
-                        .append(",\"potassium\":")
-                        .append(r.getDouble("potassium"))
-
-                        .append(",\"temperature\":")
-                        .append(r.getDouble("temperature"))
-
-                        .append(",\"soilType\":\"")
-                        .append(esc(r.getString("soil_type")))
-                        .append("\"")
-
-                        .append(",\"plant\":\"")
-                        .append(esc(r.getString("suitable_plant")))
-                        .append("\"")
-
-                        .append(",\"duration\":\"")
-                        .append(esc(r.getString("growth_duration")))
-                        .append("\"")
-
-                        .append(",\"source\":\"")
-                        .append(esc(r.getString("source")))
-                        .append("\"")
-
-                        .append(",\"time\":\"")
-                        .append(esc(r.getString("reading_time")))
-                        .append("\"")
-
-                        .append("}");
-            }
-
-        } catch (SQLException ex) {
-
-            json(
-                    e,
-                    500,
-                    "{\"error\":\""
-                            + esc(ex.getMessage())
-                            + "\"}"
-            );
-
+        if (!allowGet(e)) {
             return;
         }
 
-        s.append("]");
+        try {
 
-        json(e, 200, s.toString());
+            checkPath(e, "/api/history");
+
+            StringBuilder s = new StringBuilder();
+            s.append("[");
+
+            String sql =
+                    "SELECT id, moisture, ph, nitrogen, phosphorus, potassium, "
+                    + "temperature, soil_type, suitable_plant, growth_duration, "
+                    + "source, reading_time "
+                    + "FROM soil_readings "
+                    + "ORDER BY id DESC LIMIT 50";
+
+            try (
+                    Connection con = DatabaseConnection.getConnection();
+                    PreparedStatement ps = con.prepareStatement(sql);
+                    ResultSet r = ps.executeQuery()
+            ) {
+
+                boolean first = true;
+
+                while (r.next()) {
+
+                    if (!first) {
+                        s.append(",");
+                    }
+
+                    first = false;
+
+                    s.append("{")
+                            .append("\"id\":")
+                            .append(r.getInt("id"))
+
+                            .append(",\"moisture\":")
+                            .append(r.getDouble("moisture"))
+
+                            .append(",\"ph\":")
+                            .append(r.getDouble("ph"))
+
+                            .append(",\"nitrogen\":")
+                            .append(r.getDouble("nitrogen"))
+
+                            .append(",\"phosphorus\":")
+                            .append(r.getDouble("phosphorus"))
+
+                            .append(",\"potassium\":")
+                            .append(r.getDouble("potassium"))
+
+                            .append(",\"temperature\":")
+                            .append(r.getDouble("temperature"))
+
+                            .append(",\"soilType\":\"")
+                            .append(esc(r.getString("soil_type")))
+                            .append("\"")
+
+                            .append(",\"plant\":\"")
+                            .append(esc(r.getString("suitable_plant")))
+                            .append("\"")
+
+                            .append(",\"duration\":\"")
+                            .append(esc(r.getString("growth_duration")))
+                            .append("\"")
+
+                            .append(",\"source\":\"")
+                            .append(esc(r.getString("source")))
+                            .append("\"")
+
+                            .append(",\"time\":\"")
+                            .append(esc(r.getString("reading_time")))
+                            .append("\"")
+
+                            .append("}");
+                }
+            }
+
+            s.append("]");
+            json(e, 200, s.toString());
+
+        } catch (IllegalArgumentException ex) {
+
+            json(e, 400, "{\"error\":\"Invalid request.\"}");
+
+        } catch (SQLException ex) {
+
+            System.err.println("History database error: " + ex.getMessage());
+
+            json(e, 503, "{\"error\":\"Reading history is currently unavailable.\"}");
+        }
     }
 
     private void research(HttpExchange e) throws IOException {
 
-        String sql =
-                "SELECT COUNT(*) AS total, "
-                + "COALESCE(AVG(moisture),0) AS avg_moisture "
-                + "FROM soil_readings";
+        if (!allowGet(e)) {
+            return;
+        }
 
-        try (
-                Connection con = DatabaseConnection.getConnection();
-                PreparedStatement ps = con.prepareStatement(sql);
-                ResultSet r = ps.executeQuery()
-        ) {
+        try {
 
-            if (r.next()) {
+            checkPath(e, "/api/research");
 
-                int total = r.getInt("total");
+            String sql =
+                    "SELECT COUNT(*) AS total, "
+                    + "COALESCE(AVG(moisture),0) AS avg_moisture "
+                    + "FROM soil_readings";
 
-                double avg = r.getDouble("avg_moisture");
+            try (
+                    Connection con = DatabaseConnection.getConnection();
+                    PreparedStatement ps = con.prepareStatement(sql);
+                    ResultSet r = ps.executeQuery()
+            ) {
 
-                String response =
-                        "{"
-                        + "\"total\":" + total + ","
-                        + "\"averageMoisture\":"
-                        + String.format(Locale.US, "%.1f", avg)
-                        + "}";
+                if (r.next()) {
 
-                json(e, 200, response);
+                    int total = r.getInt("total");
+                    double avg = r.getDouble("avg_moisture");
+
+                    String response =
+                            "{"
+                            + "\"total\":" + total + ","
+                            + "\"averageMoisture\":"
+                            + String.format(Locale.US, "%.1f", avg)
+                            + "}";
+
+                    json(e, 200, response);
+                }
             }
+
+        } catch (IllegalArgumentException ex) {
+
+            json(e, 400, "{\"error\":\"Invalid request.\"}");
 
         } catch (SQLException ex) {
 
-            json(
-                    e,
-                    500,
-                    "{\"error\":\""
-                            + esc(ex.getMessage())
-                            + "\"}"
-            );
+            System.err.println("Research database error: " + ex.getMessage());
+
+            json(e, 503, "{\"error\":\"Research statistics are currently unavailable.\"}");
         }
     }
 
     private void staticFiles(HttpExchange e) throws IOException {
 
-        String path = e.getRequestURI().getPath();
-
-        if (path.equals("/")) {
-            path = "/index.html";
-        }
-
-        if (path.contains("..")) {
-            text(e, 403, "Forbidden");
+        if (!"GET".equalsIgnoreCase(e.getRequestMethod())) {
+            e.getResponseHeaders().set("Allow", "GET");
+            text(e, 405, "Method not allowed");
             return;
         }
 
-        Path file = Paths.get("web" + path);
+        try {
 
-        if (!Files.exists(file) || Files.isDirectory(file)) {
-            text(e, 404, "Page not found");
-            return;
-        }
+            String path = e.getRequestURI().getPath();
 
-        byte[] data = Files.readAllBytes(file);
+            if (path.equals("/")) {
+                path = "/index.html";
+            }
 
-        String type = contentType(path);
+            Path root = Paths.get("web").toAbsolutePath().normalize();
 
-        e.getResponseHeaders().set(
-                "Content-Type",
-                type
-        );
+            Path file = root.resolve(path.substring(1)).normalize();
 
-        e.sendResponseHeaders(
-                200,
-                data.length
-        );
+            if (!file.startsWith(root)) {
+                text(e, 403, "Forbidden");
+                return;
+            }
 
-        try (OutputStream os = e.getResponseBody()) {
-            os.write(data);
+            if (!Files.isRegularFile(file)) {
+                text(e, 404, "Page not found");
+                return;
+            }
+
+            byte[] data = Files.readAllBytes(file);
+
+            e.getResponseHeaders().set(
+                    "Content-Type",
+                    contentType(file.toString())
+            );
+
+            e.sendResponseHeaders(200, data.length);
+
+            try (OutputStream os = e.getResponseBody()) {
+                os.write(data);
+            }
+
+        } catch (Exception ex) {
+
+            System.err.println("Static file error: " + ex.getMessage());
+
+            text(e, 500, "Unable to load page.");
         }
     }
 
     private String contentType(String path) {
 
-        if (path.endsWith(".html")) {
+        String lower = path.toLowerCase(Locale.ROOT);
+
+        if (lower.endsWith(".html")) {
             return "text/html; charset=UTF-8";
         }
 
-        if (path.endsWith(".css")) {
+        if (lower.endsWith(".css")) {
             return "text/css; charset=UTF-8";
         }
 
-        if (path.endsWith(".js")) {
+        if (lower.endsWith(".js")) {
             return "application/javascript; charset=UTF-8";
         }
 
@@ -384,8 +456,7 @@ public class WebServer {
 
     private Map<String, String> query(URI uri) {
 
-        java.util.HashMap<String, String> map =
-                new java.util.HashMap<>();
+        Map<String, String> map = new HashMap<>();
 
         String q = uri.getRawQuery();
 
@@ -393,16 +464,33 @@ public class WebServer {
             return map;
         }
 
-        for (String part : q.split("&")) {
+        if (q.length() > 4096) {
+            throw new IllegalArgumentException("Query is too long.");
+        }
+
+        String[] parts = q.split("&", -1);
+
+        if (parts.length > 20) {
+            throw new IllegalArgumentException("Too many parameters.");
+        }
+
+        for (String part : parts) {
+
+            if (part.isEmpty()) {
+                throw new IllegalArgumentException("Invalid query.");
+            }
 
             String[] kv = part.split("=", 2);
 
             String key = decode(kv[0]);
 
-            String value =
-                    kv.length > 1
-                            ? decode(kv[1])
-                            : "";
+            String value = kv.length > 1
+                    ? decode(kv[1])
+                    : "";
+
+            if (key.isBlank() || map.containsKey(key)) {
+                throw new IllegalArgumentException("Invalid query parameter.");
+            }
 
             map.put(key, value);
         }
@@ -413,41 +501,53 @@ public class WebServer {
     private String decode(String value) {
 
         try {
-            return java.net.URLDecoder.decode(
+
+            return URLDecoder.decode(
                     value,
                     StandardCharsets.UTF_8
             );
-        } catch (Exception ex) {
-            return value;
+
+        } catch (IllegalArgumentException ex) {
+
+            throw new IllegalArgumentException("Invalid URL encoding.");
         }
     }
 
     private double number(
             Map<String, String> map,
             String key,
-            double defaultValue
+            double defaultValue,
+            double min,
+            double max
     ) {
+
+        String value = map.get(key);
+
+        if (value == null) {
+            return defaultValue;
+        }
+
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("Missing value: " + key);
+        }
 
         try {
 
-            String value = map.get(key);
+            double result = Double.parseDouble(value);
 
-            if (value == null || value.isEmpty()) {
-                return defaultValue;
+            if (!Double.isFinite(result) || result < min || result > max) {
+                throw new IllegalArgumentException("Value out of range: " + key);
             }
 
-            return Double.parseDouble(value);
+            return result;
 
-        } catch (Exception ex) {
+        } catch (NumberFormatException ex) {
 
-            return defaultValue;
+            throw new IllegalArgumentException("Invalid number: " + key);
         }
     }
 
-    private String soilType(
-            double ph,
-            double moisture
-    ) {
+    private String soilType(double ph, double moisture) {
 
         if (ph < 5.5) {
             return "Acidic Soil";
@@ -510,46 +610,105 @@ public class WebServer {
             return "Unknown";
         }
 
-        return crop.substring(0, 1).toUpperCase()
-                + crop.substring(1).toLowerCase();
+        return crop.substring(0, 1).toUpperCase(Locale.ROOT)
+                + crop.substring(1).toLowerCase(Locale.ROOT);
     }
 
-    private String esc(String x) {
+    private String esc(String value) {
 
-        if (x == null) {
+        if (value == null) {
             return "";
         }
 
-        return x
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", " ")
-                .replace("\r", " ");
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < value.length(); i++) {
+
+            char c = value.charAt(i);
+
+            switch (c) {
+
+                case '"':
+                    result.append("\\\"");
+                    break;
+
+                case '\\':
+                    result.append("\\\\");
+                    break;
+
+                case '\b':
+                    result.append("\\b");
+                    break;
+
+                case '\f':
+                    result.append("\\f");
+                    break;
+
+                case '\n':
+                    result.append("\\n");
+                    break;
+
+                case '\r':
+                    result.append("\\r");
+                    break;
+
+                case '\t':
+                    result.append("\\t");
+                    break;
+
+                default:
+                    if (c < 0x20) {
+                        result.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        result.append(c);
+                    }
+            }
+        }
+
+        return result.toString();
     }
 
     private void text(
             HttpExchange e,
             int code,
-            String x
+            String value
     ) throws IOException {
 
-        byte[] b =
-                x.getBytes(StandardCharsets.UTF_8);
-
-        e.sendResponseHeaders(
-                code,
-                b.length
+        e.getResponseHeaders().set(
+                "X-Content-Type-Options",
+                "nosniff"
         );
 
+        e.getResponseHeaders().set(
+                "X-Frame-Options",
+                "DENY"
+        );
+
+        e.getResponseHeaders().set(
+                "Referrer-Policy",
+                "strict-origin-when-cross-origin"
+        );
+
+        byte[] data = value.getBytes(StandardCharsets.UTF_8);
+
+        if (e.getResponseHeaders().getFirst("Content-Type") == null) {
+            e.getResponseHeaders().set(
+                    "Content-Type",
+                    "text/plain; charset=UTF-8"
+            );
+        }
+
+        e.sendResponseHeaders(code, data.length);
+
         try (OutputStream os = e.getResponseBody()) {
-            os.write(b);
+            os.write(data);
         }
     }
 
     private void json(
             HttpExchange e,
             int code,
-            String x
+            String value
     ) throws IOException {
 
         e.getResponseHeaders().set(
@@ -557,6 +716,6 @@ public class WebServer {
                 "application/json; charset=UTF-8"
         );
 
-        text(e, code, x);
+        text(e, code, value);
     }
 }
