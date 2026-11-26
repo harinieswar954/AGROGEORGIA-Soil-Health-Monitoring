@@ -1,99 +1,109 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Dashboard</title>
-<link rel="stylesheet" href="/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="View soil readings and AI-based crop recommendations in the AGROGEORGIA monitoring dashboard.">
+    <title>Dashboard | AGROGEORGIA</title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
 
-<nav>
-<div class="brand">AGROGEORGIA</div>
-<div>
-<a href="/">Home</a>
-<a href="/dashboard.html">Dashboard</a>
-<a href="/analysis.html">AI Analysis</a>
-<a href="/history.html">History</a>
-<a href="/research.html">Research Portal</a>
-</div>
+<nav aria-label="Main navigation">
+    <div class="brand">AGROGEORGIA</div>
+    <div>
+        <a href="/">Home</a>
+        <a href="/dashboard.html" aria-current="page">Dashboard</a>
+        <a href="/analysis.html">AI Analysis</a>
+        <a href="/history.html">History</a>
+        <a href="/research.html">Research Portal</a>
+    </div>
 </nav>
 
 <main class="container">
 
-<span class="badge">LIVE / ESP32</span>
+    <span class="badge">SOIL MONITORING</span>
 
-<h1>Soil Monitoring Dashboard</h1>
+    <h1>Soil Monitoring Dashboard</h1>
 
-<p>Live soil monitoring data received from the ESP32 sensor.</p>
+    <p>
+        View the latest saved soil readings and AI-based crop
+        recommendations. Enter soil parameters through the AI Analysis page.
+    </p>
 
-<button class="btn" onclick="loadLatest()">Refresh Reading</button>
+    <button class="btn" type="button" onclick="loadLatest()">
+        Refresh Reading
+    </button>
 
-<div class="grid">
+    <div class="grid">
 
-<div class="metric">
-<span>Moisture</span>
-<strong id="moisture">--</strong>
-</div>
+        <div class="metric">
+            <span>Moisture</span>
+            <strong id="moisture">--</strong>
+        </div>
 
-<div class="metric">
-<span>Temperature</span>
-<strong id="temperature">--</strong>
-</div>
+        <div class="metric">
+            <span>Temperature</span>
+            <strong id="temperature">--</strong>
+        </div>
 
-<div class="metric">
-<span>pH</span>
-<strong id="ph">--</strong>
-</div>
+        <div class="metric">
+            <span>pH</span>
+            <strong id="ph">--</strong>
+        </div>
 
-<div class="metric">
-<span>Nitrogen</span>
-<strong id="nitrogen">--</strong>
-</div>
+        <div class="metric">
+            <span>Nitrogen</span>
+            <strong id="nitrogen">--</strong>
+        </div>
 
-<div class="metric">
-<span>Phosphorus</span>
-<strong id="phosphorus">--</strong>
-</div>
+        <div class="metric">
+            <span>Phosphorus</span>
+            <strong id="phosphorus">--</strong>
+        </div>
 
-<div class="metric">
-<span>Potassium</span>
-<strong id="potassium">--</strong>
-</div>
+        <div class="metric">
+            <span>Potassium</span>
+            <strong id="potassium">--</strong>
+        </div>
 
-</div>
+    </div>
 
-<section class="result">
+    <section class="result" aria-labelledby="analysisHeading">
 
-<h2>AI Analysis</h2>
+        <h2 id="analysisHeading">AI Analysis</h2>
 
-<div class="result-grid">
+        <div class="result-grid">
 
-<div>
-<small>Soil Type</small>
-<b id="soilType">--</b>
-</div>
+            <div>
+                <small>Soil Type</small>
+                <b id="soilType">--</b>
+            </div>
 
-<div>
-<small>Suitable Plant</small>
-<b id="plant">--</b>
-</div>
+            <div>
+                <small>Suitable Plant</small>
+                <b id="plant">--</b>
+            </div>
 
-<div>
-<small>Growth Duration</small>
-<b id="duration">--</b>
-</div>
+            <div>
+                <small>Growth Duration</small>
+                <b id="duration">--</b>
+            </div>
 
-<div>
-<small>Soil Health</small>
-<b id="health">--</b>
-</div>
+            <div>
+                <small>Soil Health</small>
+                <b id="health">--</b>
+            </div>
 
-</div>
+        </div>
 
-<p class="note" id="status"></p>
+        <p class="note" id="status" role="status" aria-live="polite">
+            Click Refresh Reading to check for saved readings.
+        </p>
 
-</section>
+    </section>
 
 </main>
 
@@ -101,20 +111,29 @@
 
 async function loadLatest() {
 
+    const status = document.getElementById("status");
+
+    status.textContent = "Loading saved readings...";
+
     try {
 
-        // Get latest database reading
-        let response = await fetch("/api/history");
-        let data = await response.json();
+        const response = await fetch("/api/history");
+
+        if (!response.ok) {
+            throw new Error("Unable to access reading history.");
+        }
+
+        const data = await response.json();
 
         if (!Array.isArray(data) || data.length === 0) {
-            document.getElementById("status").textContent =
-                "No readings available.";
+
+            status.textContent =
+                "No saved readings available. Use AI Analysis to enter soil parameters.";
+
             return;
         }
 
-        // History is newest first
-        let r = data[0];
+        const r = data[0];
 
         document.getElementById("moisture").textContent =
             r.moisture + " %";
@@ -135,46 +154,40 @@ async function loadLatest() {
             r.potassium + " mg/kg";
 
         document.getElementById("soilType").textContent =
-            r.soilType;
+            r.soilType || "--";
 
         document.getElementById("plant").textContent =
-            r.plant;
+            r.plant || "--";
 
         document.getElementById("duration").textContent =
-            r.duration;
+            r.duration || "--";
 
-        // Determine health from moisture
-        let moisture = Number(r.moisture);
+        const moisture = Number(r.moisture);
+
+        let health;
 
         if (moisture < 30) {
-            document.getElementById("health").textContent =
-                "Dry";
+            health = "Dry";
         } else if (moisture < 60) {
-            document.getElementById("health").textContent =
-                "Moderate";
+            health = "Moderate";
         } else {
-            document.getElementById("health").textContent =
-                "Healthy";
+            health = "Healthy";
         }
 
-        document.getElementById("status").textContent =
-            "Live reading from " + r.source +
-            " | Last update: " + r.time;
+        document.getElementById("health").textContent = health;
+
+        status.textContent =
+            "Saved reading | Source: " + (r.source || "Unknown") +
+            " | Last update: " + (r.time || "Unknown");
 
     } catch (error) {
 
-        document.getElementById("status").textContent =
-            "Unable to load latest reading.";
+        status.textContent =
+            "Unable to load readings. Database may not be configured.";
 
-        console.error(error);
+        console.error("Dashboard error:", error);
     }
 }
-
-// Load immediately
-loadLatest();
-
-// Automatically refresh every 5 seconds
-setInterval(loadLatest, 5000);
 
 </script>
 
