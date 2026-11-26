@@ -1,3 +1,4 @@
+
 package com.agrogeorgia;
 
 import com.agrogeorgia.ai.CropPrediction;
@@ -16,9 +17,14 @@ public class Main {
 
             System.out.println("Checking MySQL connection...");
 
-            DatabaseConnection.getConnection();
+            boolean databaseAvailable = DatabaseConnection.testConnection();
 
-            System.out.println("MySQL connection successful.");
+            if (databaseAvailable) {
+                System.out.println("MySQL connection successful.");
+            } else {
+                System.out.println("WARNING: MySQL is unavailable.");
+                System.out.println("Website will start without database features.");
+            }
 
             System.out.println("Loading AI model...");
 
@@ -31,8 +37,7 @@ public class Main {
             server.start();
 
             System.out.println();
-            System.out.println("System is running successfully.");
-            System.out.println("Open: http://localhost:8080");
+            System.out.println("Website server started successfully.");
 
         } catch (Exception e) {
 
