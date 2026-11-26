@@ -7,27 +7,36 @@ import java.sql.SQLException;
 
 public class DatabaseConnection {
 
-    private static final String URL =
-        System.getenv().getOrDefault(
-            "DB_URL",
-            "jdbc:mysql://localhost:3306/soil_project?useSSL=false&serverTimezone=Asia/Kolkata"
-        );
-
-    private static final String USER =
-        System.getenv().getOrDefault("DB_USER", "root");
-
-    private static final String PASSWORD =
-        System.getenv().getOrDefault("DB_PASSWORD", "PASSWORD");
+    private static final String URL = System.getenv("DB_URL");
+    private static final String USER = System.getenv("DB_USER");
+    private static final String PASSWORD = System.getenv("DB_PASSWORD");
 
     public static Connection getConnection() throws SQLException {
+
+        if (URL == null || URL.isBlank()
+                || USER == null || USER.isBlank()
+                || PASSWORD == null || PASSWORD.isBlank()) {
+
+            throw new SQLException(
+                "Database environment variables are not configured."
+            );
+        }
+
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }
 
     public static boolean testConnection() {
-        try (Connection c = getConnection()) {
-            return c != null && !c.isClosed();
+
+        try (Connection connection = getConnection()) {
+
+            return connection != null && !connection.isClosed();
+
         } catch (SQLException e) {
-            System.out.println("Database connection failed: " + e.getMessage());
+
+            System.out.println(
+                "Database connection failed: " + e.getMessage()
+            );
+
             return false;
         }
     }
