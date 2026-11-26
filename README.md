@@ -87,3 +87,22 @@ The system aims to make soil analysis and crop recommendation more accessible th
 ## Developed For
 
 PROMPTWARS × AI VIBEATHON 2026
+
+
+## API Testing
+
+The project includes an automated PowerShell API testing script (`test_api.ps1`).
+
+The test script verifies:
+
+1. Valid soil input produces an AI crop prediction.
+2. Invalid pH values are rejected with HTTP 400.
+3. Unsupported HTTP methods are rejected with HTTP 405.
+
+Run the tests using PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\test_api.ps1
+```
+
+All three API tests passed against the deployed application.
