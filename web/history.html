@@ -1,6 +1,166 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>History</title><link rel="stylesheet" href="/style.css"></head><body>
-<nav><div class="brand">AGROGEORGIA</div><div><a href="/">Home</a><a href="/dashboard.html">Dashboard</a><a href="/analysis.html">AI Analysis</a><a href="/history.html">History</a><a href="/research.html">Research Portal</a></div></nav>
-<main class="container"><span class="badge">DATABASE</span><h1>Soil Monitoring History</h1><div class="table-wrap"><table><thead><tr><th>ID</th><th>Time</th><th>Moisture</th><th>pH</th><th>N</th><th>P</th><th>K</th><th>Temp</th><th>Soil</th><th>Plant</th><th>Duration</th><th>Source</th></tr></thead><tbody id="history"></tbody></table></div></main>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="View saved soil monitoring readings and crop recommendations in AGROGEORGIA.">
+    <title>Soil History | AGROGEORGIA</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<nav aria-label="Main navigation">
+    <div class="brand">AGROGEORGIA</div>
+    <div>
+        <a href="/">Home</a>
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/analysis.html">AI Analysis</a>
+        <a href="/history.html" aria-current="page">History</a>
+        <a href="/research.html">Research Portal</a>
+    </div>
+</nav>
+
+<main class="container">
+
+    <span class="badge">DATABASE</span>
+
+    <h1>Soil Monitoring History</h1>
+
+    <p>View previously saved soil readings and crop recommendations.</p>
+
+    <p id="historyStatus" role="status" aria-live="polite">
+        Loading reading history...
+    </p>
+
+    <div class="table-wrap">
+
+        <table>
+            <caption>Previously saved soil monitoring readings</caption>
+
+            <thead>
+                <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Time</th>
+                    <th scope="col">Moisture</th>
+                    <th scope="col">pH</th>
+                    <th scope="col">Nitrogen</th>
+                    <th scope="col">Phosphorus</th>
+                    <th scope="col">Potassium</th>
+                    <th scope="col">Temperature</th>
+                    <th scope="col">Soil</th>
+                    <th scope="col">Plant</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Source</th>
+                </tr>
+            </thead>
+
+            <tbody id="history"></tbody>
+
+        </table>
+
+    </div>
+
+</main>
+
 <script>
-async function load(){let d=await(await fetch("/api/history")).json();let t=document.getElementById("history");t.innerHTML="";if(!Array.isArray(d)||!d.length){t.innerHTML='<tr><td colspan="12">No records yet.</td></tr>';return}d.forEach(r=>{let tr=document.createElement("tr");tr.innerHTML="<td>"+r.id+"</td><td>"+r.time+"</td><td>"+r.moisture+"%</td><td>"+r.ph+"</td><td>"+r.nitrogen+"</td><td>"+r.phosphorus+"</td><td>"+r.potassium+"</td><td>"+r.temperature+"°C</td><td>"+r.soilType+"</td><td>"+r.plant+"</td><td>"+r.duration+"</td><td>"+r.source+"</td>";t.appendChild(tr)})}load();
-</script></body></html>
+
+async function load() {
+
+    const table = document.getElementById("history");
+    const status = document.getElementById("historyStatus");
+
+    table.replaceChildren();
+
+    status.textContent = "Loading reading history...";
+
+    try {
+
+        const response = await fetch("/api/history");
+
+        if (!response.ok) {
+            throw new Error("Unable to retrieve reading history.");
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+
+            cell.colSpan = 12;
+            cell.textContent = "No saved readings available.";
+
+            row.appendChild(cell);
+            table.appendChild(row);
+
+            status.textContent =
+                "No records found. Save a reading to view it here.";
+
+            return;
+        }
+
+        data.forEach(function(r) {
+
+            const row = document.createElement("tr");
+
+            const values = [
+                r.id,
+                r.time,
+                r.moisture + "%",
+                r.ph,
+                r.nitrogen,
+                r.phosphorus,
+                r.potassium,
+                r.temperature + "°C",
+                r.soilType,
+                r.plant,
+                r.duration,
+                r.source
+            ];
+
+            values.forEach(function(value) {
+
+                const cell = document.createElement("td");
+
+                cell.textContent =
+                    value === null || value === undefined
+                        ? "--"
+                        : String(value);
+
+                row.appendChild(cell);
+            });
+
+            table.appendChild(row);
+
+        });
+
+        status.textContent =
+            "Successfully loaded " + data.length + " reading records.";
+
+    } catch (error) {
+
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+
+        cell.colSpan = 12;
+        cell.textContent = "Reading history is currently unavailable.";
+
+        row.appendChild(cell);
+        table.appendChild(row);
+
+        status.textContent =
+            "Unable to load history. Please check database availability.";
+
+        console.error("History loading error:", error);
+    }
+}
+
+load();
+
+</script>
+
+</body>
+</html>
