@@ -32,7 +32,7 @@ public class WebServer {
 
     public void start() throws IOException {
 
-        String portValue = System.getenv("PORT"); int port = (portValue != null) ? Integer.parseInt(portValue) : 8080;  server = HttpServer.create(new InetSocketAddress(port), 0);
+        String portValue = System.getenv("PORT"); int port = (portValue != null) ? Integer.parseInt(portValue) : 8080; server = HttpServer.create(new InetSocketAddress(port), 0);
 
         server.createContext("/api/predict", this::predict);
         server.createContext("/api/readings", this::readings);
