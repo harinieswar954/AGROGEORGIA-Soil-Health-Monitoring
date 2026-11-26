@@ -1,6 +1,124 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Research Portal</title><link rel="stylesheet" href="/style.css"></head><body>
-<nav><div class="brand">AGROGEORGIA</div><div><a href="/">Home</a><a href="/dashboard.html">Dashboard</a><a href="/analysis.html">AI Analysis</a><a href="/history.html">History</a><a href="/research.html">Research Portal</a></div></nav>
-<main class="container"><span class="badge">RESEARCH / STUDENT PORTAL</span><h1>Soil Data Repository</h1><p>Stored observations for student and research analysis.</p>
-<div class="grid"><div class="metric"><span>Total Records</span><strong id="total">--</strong></div><div class="metric"><span>Average Moisture</span><strong id="avg">--</strong></div><div class="metric"><span>Database</span><strong>MySQL</strong></div></div>
-<section class="result"><h2>Research Usage</h2><p>Researchers can compare stored observations and use them for soil-condition analysis, crop recommendation studies and future model improvement.</p><p class="note">Only moisture is physically measured in the current hardware prototype.</p></section></main>
-<script>async function load(){let d=await(await fetch("/api/research")).json();total.textContent=d.total;avg.textContent=d.averageMoisture+"%"}load();</script></body></html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explore soil monitoring records and research statistics using the AGROGEORGIA student research portal.">
+    <title>Research Portal | AGROGEORGIA</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<nav aria-label="Main navigation">
+    <div class="brand">AGROGEORGIA</div>
+    <div>
+        <a href="/">Home</a>
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/analysis.html">AI Analysis</a>
+        <a href="/history.html">History</a>
+        <a href="/research.html" aria-current="page">Research Portal</a>
+    </div>
+</nav>
+
+<main class="container">
+
+    <span class="badge">RESEARCH / STUDENT PORTAL</span>
+
+    <h1>Soil Data Repository</h1>
+
+    <p>Stored observations for student and research analysis.</p>
+
+    <div class="grid">
+
+        <div class="metric">
+            <span>Total Records</span>
+            <strong id="total">--</strong>
+        </div>
+
+        <div class="metric">
+            <span>Average Moisture</span>
+            <strong id="avg">--</strong>
+        </div>
+
+        <div class="metric">
+            <span>Database</span>
+            <strong>MySQL</strong>
+        </div>
+
+    </div>
+
+    <p id="researchStatus" class="note" role="status" aria-live="polite">
+        Loading research statistics...
+    </p>
+
+    <section class="result" aria-labelledby="researchHeading">
+
+        <h2 id="researchHeading">Research Usage</h2>
+
+        <p>
+            Researchers can compare stored observations and use them
+            for soil-condition analysis, crop recommendation studies
+            and future model improvement.
+        </p>
+
+        <p class="note">
+            Only moisture is physically measured in the current
+            hardware prototype. Other soil and environmental parameters
+            are supplied through application inputs or dataset records.
+        </p>
+
+    </section>
+
+</main>
+
+<script>
+
+async function loadResearch() {
+
+    const totalElement = document.getElementById("total");
+    const averageElement = document.getElementById("avg");
+    const status = document.getElementById("researchStatus");
+
+    status.textContent = "Loading research statistics...";
+
+    try {
+
+        const response = await fetch("/api/research");
+
+        if (!response.ok) {
+            throw new Error("Research service is unavailable.");
+        }
+
+        const data = await response.json();
+
+        totalElement.textContent =
+            data.total ?? "--";
+
+        averageElement.textContent =
+            data.averageMoisture !== undefined
+                ? data.averageMoisture + "%"
+                : "--";
+
+        status.textContent =
+            "Research statistics loaded successfully.";
+
+    } catch (error) {
+
+        totalElement.textContent = "--";
+        averageElement.textContent = "--";
+
+        status.textContent =
+            "Research statistics are currently unavailable. Please check database availability.";
+
+        console.error("Research loading error:", error);
+    }
+}
+
+loadResearch();
+
+</script>
+
+</body>
+</html>
